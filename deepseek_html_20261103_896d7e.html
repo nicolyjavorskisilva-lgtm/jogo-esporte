@@ -1,0 +1,2546 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corrida FPS - Solo ou Torneio</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; font-family: 'Arial', sans-serif; background: #000; }
+        
+        #hud {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            padding: 20px;
+            z-index: 100;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .hud-panel {
+            background: rgba(0,0,0,0.75);
+            padding: 12px 22px;
+            border-radius: 12px;
+            color: white;
+            border: 2px solid #ffaa00;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 20px rgba(255,170,0,0.4);
+            font-weight: bold;
+        }
+        
+        #distance-panel {
+            font-size: 16px;
+            color: #ffaa00;
+            text-shadow: 0 0 10px rgba(255,170,0,0.8);
+            min-width: 220px;
+        }
+        
+        #distance-panel .progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        #distance-panel .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffaa00, #00ff88);
+            width: 0%;
+            transition: width 0.2s;
+            border-radius: 3px;
+            box-shadow: 0 0 10px #ffaa00;
+        }
+        
+        #timer-panel {
+            background: rgba(0,0,0,0.85);
+            padding: 12px 22px;
+            border-radius: 12px;
+            color: white;
+            border: 2px solid #00ff88;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 25px rgba(0,255,136,0.5);
+            font-weight: bold;
+            text-align: center;
+            min-width: 160px;
+        }
+        
+        #timer-panel .timer-label {
+            font-size: 10px;
+            color: #00ff88;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        
+        #timer-panel .timer-value {
+            font-size: 32px;
+            color: #00ff88;
+            text-shadow: 0 0 15px #00ff88;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+        }
+        
+        #players-scoreboard {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: rgba(0,0,0,0.75);
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 2px solid #333;
+            backdrop-filter: blur(8px);
+            min-width: 260px;
+        }
+        
+        .player-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: white;
+            padding: 3px 6px;
+            opacity: 0.7;
+            border-radius: 6px;
+            transition: 0.2s;
+        }
+        
+        .player-row.current {
+            opacity: 1;
+            background: rgba(255,170,0,0.15);
+            border-left: 3px solid #ffaa00;
+        }
+        
+        .player-row.finished {
+            opacity: 1;
+            background: rgba(0,255,136,0.1);
+        }
+        
+        .player-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+            flex-shrink: 0;
+        }
+        
+        .player-name { flex: 1; font-weight: bold; }
+        .player-score { color: #00ff88; font-weight: bold; min-width: 50px; text-align: right; }
+        .player-time { color: #00ccff; font-size: 11px; min-width: 50px; text-align: right; font-family: 'Courier New', monospace; }
+        .player-medal { font-size: 16px; min-width: 20px; }
+        
+        #turn-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.92);
+            border: 3px solid #ffaa00;
+            border-radius: 20px;
+            padding: 30px 60px;
+            z-index: 250;
+            color: white;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            box-shadow: 0 0 60px rgba(255,170,0,0.6);
+            letter-spacing: 2px;
+            cursor: pointer;
+            pointer-events: auto;
+            animation: turnIn 0.4s ease-out;
+        }
+        
+        @keyframes turnIn {
+            from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        #turn-indicator .turn-label {
+            font-size: 14px;
+            color: #aaa;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+        
+        #turn-indicator .player-highlight {
+            font-size: 52px;
+            margin: 15px 0;
+            text-shadow: 0 0 30px currentColor;
+            letter-spacing: 3px;
+        }
+        
+        #turn-indicator .turn-hint {
+            font-size: 15px;
+            color: #888;
+            margin-top: 20px;
+            letter-spacing: 1px;
+        }
+        
+        #turn-indicator .turn-progress {
+            font-size: 14px;
+            color: #00ccff;
+            margin-top: 12px;
+            letter-spacing: 1px;
+        }
+        
+        #speed-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            background: rgba(0,0,0,0.75);
+            padding: 12px 22px;
+            border-radius: 12px;
+            color: #00ccff;
+            border: 2px solid #00ccff;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 20px rgba(0,204,255,0.4);
+            pointer-events: none;
+        }
+        
+        #controls-hint {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 18px;
+            border-radius: 12px;
+            color: #ccc;
+            font-size: 13px;
+            z-index: 100;
+            border: 1px solid #444;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            max-width: 340px;
+            text-align: right;
+        }
+        
+        #controls-hint kbd {
+            background: #333;
+            border-radius: 4px;
+            padding: 2px 7px;
+            margin: 0 3px;
+            color: #ffaa00;
+            font-weight: bold;
+            border: 1px solid #555;
+            display: inline-block;
+        }
+        
+        #jump-combo-display {
+            position: absolute;
+            top: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            text-align: center;
+        }
+        
+        #jump-combo-display .jump-combo-count {
+            font-size: 44px;
+            font-weight: 900;
+            color: #ffaa00;
+            text-shadow: 0 0 25px #ffaa00, 0 0 50px #ff6600;
+            letter-spacing: 2px;
+            animation: jumpComboPop 0.4s ease-out;
+        }
+        
+        #jump-combo-display .jump-combo-label {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffdd00;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-top: -5px;
+            text-shadow: 0 0 10px #ffaa00;
+        }
+        
+        #jump-combo-display .jump-combo-bonus {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+            margin-top: 4px;
+            text-shadow: 0 0 10px #00ff88;
+        }
+        
+        @keyframes jumpComboPop {
+            0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+            60% { transform: scale(1.3) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        
+        #jump-combo-display.jumping .jump-combo-count {
+            animation: jumpComboBounce 0.35s ease-out;
+        }
+        
+        @keyframes jumpComboBounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+        
+        #jump-combo-timer {
+            width: 200px;
+            height: 6px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 3px;
+            margin: 8px auto 0;
+            overflow: hidden;
+            border: 1px solid #ffaa00;
+        }
+        
+        #jump-combo-timer-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffaa00, #ffdd00, #ff6600);
+            border-radius: 3px;
+            width: 100%;
+            transition: width 0.1s linear;
+            box-shadow: 0 0 10px #ffaa00;
+        }
+        
+        .jump-bonus-popup {
+            position: absolute;
+            font-size: 28px;
+            font-weight: 900;
+            color: #00ff88;
+            text-shadow: 0 0 15px #00ff88;
+            pointer-events: none;
+            z-index: 200;
+            animation: bonusFloat 1s ease-out forwards;
+            letter-spacing: 1px;
+        }
+        
+        @keyframes bonusFloat {
+            0% { transform: translateY(0) scale(0.8); opacity: 0; }
+            20% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+            100% { transform: translateY(-80px) scale(1); opacity: 0; }
+        }
+        
+        #challenge-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.92);
+            border: 3px solid #ffaa00;
+            border-radius: 20px;
+            padding: 30px 50px;
+            z-index: 200;
+            color: white;
+            text-align: center;
+            min-width: 420px;
+            box-shadow: 0 0 60px rgba(255,170,0,0.6);
+            display: none;
+            animation: challengeIn 0.4s ease-out;
+        }
+        
+        @keyframes challengeIn {
+            from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        #challenge-box .challenge-title {
+            color: #ffaa00;
+            font-size: 16px;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        #challenge-box .challenge-player {
+            font-size: 20px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        #challenge-box .challenge-text {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+        
+        #challenge-box .challenge-key {
+            display: inline-block;
+            background: #ffaa00;
+            color: black;
+            padding: 10px 30px;
+            border-radius: 10px;
+            font-size: 32px;
+            font-weight: 900;
+            margin: 10px;
+            box-shadow: 0 5px 0 #aa7000;
+            letter-spacing: 2px;
+        }
+        
+        #challenge-box .challenge-timer {
+            margin-top: 15px;
+            font-size: 18px;
+            color: #ff5555;
+            font-weight: bold;
+        }
+        
+        #challenge-box .timer-bar {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        #challenge-box .timer-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff3333, #ffaa00);
+            width: 100%;
+            transition: width 0.1s linear;
+            border-radius: 4px;
+        }
+        
+        #message-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 250;
+            text-align: center;
+            pointer-events: none;
+            display: none;
+        }
+        
+        #message-overlay .msg-text {
+            font-size: 60px;
+            font-weight: 900;
+            letter-spacing: 5px;
+            text-shadow: 0 0 30px currentColor;
+            animation: msgPulse 0.5s ease-out;
+        }
+        
+        @keyframes msgPulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f1e 100%);
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            overflow-y: auto;
+            padding: 30px 20px;
+        }
+        
+        #start-screen h1 {
+            font-size: 52px;
+            color: #ffaa00;
+            text-shadow: 0 0 40px rgba(255,170,0,0.8);
+            margin-bottom: 10px;
+            letter-spacing: 5px;
+        }
+        
+        #start-screen .subtitle {
+            font-size: 16px;
+            color: #aaa;
+            margin-bottom: 25px;
+            letter-spacing: 3px;
+        }
+        
+        /* ======================================================= */
+        /* SELETOR DE MODO DE JOGO                                  */
+        /* ======================================================= */
+        #mode-selector {
+            background: rgba(255,255,255,0.04);
+            border: 2px solid #00ff88;
+            border-radius: 20px;
+            padding: 22px 35px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 40px rgba(0,255,136,0.2);
+            max-width: 750px;
+            width: 100%;
+        }
+        
+        #mode-selector h2 {
+            color: #00ff88;
+            font-size: 18px;
+            letter-spacing: 4px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        
+        #mode-selector .hint {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+        
+        .mode-options {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .mode-btn {
+            background: rgba(255,255,255,0.06);
+            border: 2px solid #444;
+            color: #ccc;
+            padding: 20px 30px;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            letter-spacing: 1px;
+            font-family: inherit;
+            flex: 1;
+            min-width: 220px;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .mode-btn:hover {
+            border-color: #00ff88;
+            color: #00ff88;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,255,136,0.3);
+        }
+        
+        .mode-btn.selected {
+            background: linear-gradient(135deg, #00ff88, #00aa55);
+            color: black;
+            border-color: #00ff88;
+            box-shadow: 0 0 30px rgba(0,255,136,0.7);
+            transform: translateY(-3px);
+        }
+        
+        .mode-btn .mode-icon {
+            font-size: 36px;
+            margin-bottom: 4px;
+        }
+        
+        .mode-btn .mode-name {
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 2px;
+        }
+        
+        .mode-btn .mode-desc {
+            font-size: 11px;
+            opacity: 0.75;
+            letter-spacing: 1px;
+            font-weight: normal;
+            margin-top: 2px;
+        }
+        
+        .mode-btn.selected .mode-desc { opacity: 0.85; }
+        
+        /* ======================================================= */
+        
+        #distance-selector {
+            background: rgba(255,255,255,0.04);
+            border: 2px solid #ffaa00;
+            border-radius: 20px;
+            padding: 22px 35px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 40px rgba(255,170,0,0.2);
+            max-width: 750px;
+            width: 100%;
+        }
+        
+        #distance-selector h2 {
+            color: #ffaa00;
+            font-size: 18px;
+            letter-spacing: 4px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        
+        #distance-selector .hint {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+        
+        .distance-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 14px;
+        }
+        
+        .dist-btn {
+            background: rgba(255,255,255,0.06);
+            border: 2px solid #444;
+            color: #ccc;
+            padding: 12px 22px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            letter-spacing: 1px;
+            min-width: 90px;
+            font-family: inherit;
+        }
+        
+        .dist-btn:hover {
+            border-color: #ffaa00;
+            color: #ffaa00;
+            transform: translateY(-2px);
+        }
+        
+        .dist-btn.selected {
+            background: linear-gradient(135deg, #ffaa00, #ff7700);
+            color: black;
+            border-color: #ffaa00;
+            box-shadow: 0 0 25px rgba(255,170,0,0.7);
+            transform: translateY(-2px);
+        }
+        
+        .dist-btn .dist-unit {
+            display: block;
+            font-size: 10px;
+            opacity: 0.7;
+            letter-spacing: 2px;
+            margin-top: 2px;
+        }
+        
+        .custom-distance {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 12px;
+            padding-top: 14px;
+            border-top: 1px solid #333;
+            flex-wrap: wrap;
+        }
+        
+        .custom-distance label {
+            color: #aaa;
+            font-size: 13px;
+            letter-spacing: 1px;
+        }
+        
+        #custom-distance-input {
+            background: rgba(255,255,255,0.08);
+            border: 2px solid #444;
+            color: #ffaa00;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            width: 110px;
+            text-align: center;
+            font-family: inherit;
+            outline: none;
+            transition: 0.2s;
+        }
+        
+        #custom-distance-input:focus {
+            border-color: #ffaa00;
+            box-shadow: 0 0 15px rgba(255,170,0,0.4);
+        }
+        
+        #custom-distance-btn {
+            background: rgba(255,170,0,0.15);
+            border: 2px solid #ffaa00;
+            color: #ffaa00;
+            padding: 8px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+        
+        #custom-distance-btn:hover {
+            background: #ffaa00;
+            color: black;
+        }
+        
+        #players-info {
+            background: rgba(255,255,255,0.04);
+            border: 2px solid #00ccff;
+            border-radius: 20px;
+            padding: 22px 35px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 40px rgba(0,204,255,0.2);
+            max-width: 750px;
+            width: 100%;
+        }
+        
+        #players-info h2 {
+            color: #00ccff;
+            font-size: 18px;
+            letter-spacing: 4px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        
+        #players-info .hint {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+        
+        #players-info .player-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        
+        .player-info-card {
+            background: rgba(255,255,255,0.04);
+            border: 2px solid #444;
+            border-radius: 12px;
+            padding: 14px 10px;
+            text-align: center;
+            transition: 0.2s;
+        }
+        
+        .player-info-card .pi-color {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin: 0 auto 8px;
+            box-shadow: 0 0 15px currentColor;
+        }
+        
+        .player-info-card .pi-name {
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+        
+        .player-info-card .pi-controls {
+            font-size: 10px;
+            color: #999;
+            line-height: 1.5;
+        }
+        
+        .player-info-card .pi-controls kbd {
+            background: #222;
+            border-radius: 3px;
+            padding: 1px 4px;
+            color: #ffaa00;
+            border: 1px solid #444;
+            font-size: 9px;
+        }
+        
+        #selected-info {
+            color: #00ff88;
+            font-size: 14px;
+            margin-bottom: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            min-height: 20px;
+        }
+        
+        #start-screen .instructions {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 14px 25px;
+            margin-bottom: 20px;
+            max-width: 620px;
+            line-height: 1.7;
+            font-size: 13px;
+            color: #bbb;
+        }
+        
+        #start-screen .instructions strong { color: #ffaa00; }
+        #start-screen .instructions .highlight-combo { color: #ffdd00; font-weight: bold; }
+        
+        #start-button {
+            background: linear-gradient(135deg, #ffaa00, #ff7700);
+            color: black;
+            border: none;
+            padding: 20px 60px;
+            font-size: 22px;
+            font-weight: 900;
+            border-radius: 50px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            box-shadow: 0 8px 0 #aa5500, 0 0 40px rgba(255,170,0,0.5);
+            transition: 0.15s;
+            pointer-events: auto;
+            font-family: inherit;
+        }
+        
+        #start-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 11px 0 #aa5500, 0 0 60px rgba(255,170,0,0.8);
+        }
+        
+        #start-button:active {
+            transform: translateY(5px);
+            box-shadow: 0 3px 0 #aa5500;
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            background: #ffaa00;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 150;
+            box-shadow: 0 0 15px #ffaa00;
+            pointer-events: none;
+            opacity: 0.85;
+        }
+        
+        #combo-display {
+            position: absolute;
+            top: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ff88;
+            font-size: 26px;
+            font-weight: 900;
+            text-shadow: 0 0 20px #00ff88;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            letter-spacing: 2px;
+        }
+        
+        #pause-hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            background: rgba(0,0,0,0.85);
+            padding: 30px 60px;
+            border-radius: 15px;
+            border: 2px solid #ffaa00;
+            font-size: 22px;
+            z-index: 400;
+            display: none;
+            text-align: center;
+            pointer-events: none;
+        }
+        
+        #finish-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 600;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            color: white;
+            text-align: center;
+            padding: 40px 20px;
+            overflow-y: auto;
+        }
+        
+        #finish-overlay h1 {
+            font-size: 56px;
+            color: #ffaa00;
+            text-shadow: 0 0 50px rgba(255,170,0,0.9);
+            margin-bottom: 10px;
+            letter-spacing: 6px;
+            animation: msgPulse 0.6s ease-out;
+        }
+        
+        #finish-overlay .result-subtitle {
+            font-size: 16px;
+            color: #aaa;
+            margin-bottom: 30px;
+            letter-spacing: 3px;
+        }
+        
+        #podium-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 20px;
+            margin-bottom: 30px;
+            min-height: 280px;
+        }
+        
+        .podium-place {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: podiumIn 0.8s ease-out;
+        }
+        
+        @keyframes podiumIn {
+            from { transform: translateY(60px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .podium-place .podium-medal-icon {
+            font-size: 60px;
+            margin-bottom: 5px;
+            filter: drop-shadow(0 0 20px currentColor);
+            animation: medalBounce 1s ease-out;
+        }
+        
+        @keyframes medalBounce {
+            0% { transform: scale(0) rotate(-180deg); }
+            60% { transform: scale(1.3) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        
+        .podium-place .podium-player-name {
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        
+        .podium-place .podium-block {
+            width: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 12px 12px 0 0;
+            padding: 15px 10px;
+            border: 3px solid;
+            box-shadow: 0 0 40px currentColor;
+            position: relative;
+        }
+        
+        .podium-place .podium-rank {
+            font-size: 28px;
+            font-weight: 900;
+            margin-bottom: 4px;
+        }
+        
+        .podium-place .podium-score {
+            font-size: 24px;
+            font-weight: 900;
+            color: white;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        
+        .podium-place .podium-time {
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            color: #00ccff;
+            margin-top: 4px;
+            font-weight: bold;
+        }
+        
+        .podium-place .podium-detail {
+            font-size: 10px;
+            color: rgba(255,255,255,0.8);
+            margin-top: 4px;
+            letter-spacing: 1px;
+        }
+        
+        .podium-place.place-1 .podium-block {
+            height: 190px;
+            background: linear-gradient(180deg, #ffd700, #b8860b);
+            color: #ffd700;
+            border-color: #ffd700;
+        }
+        
+        .podium-place.place-2 .podium-block {
+            height: 150px;
+            background: linear-gradient(180deg, #e0e0e0, #808080);
+            color: #e0e0e0;
+            border-color: #e0e0e0;
+        }
+        
+        .podium-place.place-3 .podium-block {
+            height: 120px;
+            background: linear-gradient(180deg, #cd7f32, #6b3410);
+            color: #cd7f32;
+            border-color: #cd7f32;
+        }
+        
+        .podium-place.place-4 .podium-block {
+            height: 95px;
+            background: linear-gradient(180deg, #5a5a8a, #2a2a4a);
+            color: #5a5a8a;
+            border-color: #5a5a8a;
+        }
+        
+        /* ======================================================= */
+        /* RESULTADO SOLO                                           */
+        /* ======================================================= */
+        #solo-result {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        #solo-result .solo-big-score {
+            font-size: 90px;
+            font-weight: 900;
+            color: #ffd700;
+            text-shadow: 0 0 40px #ffd700, 0 0 80px #ffaa00;
+            letter-spacing: 4px;
+            animation: soloScoreIn 0.8s ease-out;
+            line-height: 1;
+        }
+        
+        @keyframes soloScoreIn {
+            0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+            60% { transform: scale(1.3) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        
+        #solo-result .solo-score-label {
+            font-size: 16px;
+            color: #aaa;
+            letter-spacing: 4px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        
+        #solo-result .solo-stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .solo-stat-card {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid #444;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .solo-stat-card .ss-label {
+            font-size: 11px;
+            color: #888;
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        
+        .solo-stat-card .ss-value {
+            font-size: 28px;
+            font-weight: 900;
+            color: #ffaa00;
+            text-shadow: 0 0 15px currentColor;
+        }
+        
+        .solo-stat-card .ss-value.blue { color: #00ccff; text-shadow: 0 0 15px #00ccff; }
+        .solo-stat-card .ss-value.green { color: #00ff88; text-shadow: 0 0 15px #00ff88; }
+        .solo-stat-card .ss-value.red { color: #ff6666; text-shadow: 0 0 15px #ff6666; }
+        .solo-stat-card .ss-value.magenta { color: #ff00ff; text-shadow: 0 0 15px #ff00ff; }
+        
+        #full-ranking {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid #ffaa00;
+            border-radius: 16px;
+            padding: 20px 30px;
+            margin-bottom: 25px;
+            max-width: 850px;
+            width: 100%;
+            box-shadow: 0 0 40px rgba(255,170,0,0.4);
+        }
+        
+        #full-ranking h2 {
+            color: #ffaa00;
+            font-size: 16px;
+            letter-spacing: 3px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+        
+        .ranking-row {
+            display: grid;
+            grid-template-columns: 50px 1fr 100px 90px 80px 70px 60px;
+            gap: 8px;
+            padding: 12px 8px;
+            border-bottom: 1px solid #333;
+            align-items: center;
+            font-size: 13px;
+        }
+        
+        .ranking-row:last-child { border-bottom: none; }
+        
+        .ranking-row.header {
+            color: #888;
+            font-size: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #555;
+            padding-bottom: 8px;
+        }
+        
+        .ranking-row .rank-pos { font-weight: 900; font-size: 18px; }
+        .ranking-row .rank-medal { font-size: 22px; }
+        .ranking-row .rank-name { text-align: left; font-weight: bold; }
+        .ranking-row .rank-score { color: #00ff88; font-weight: bold; font-size: 15px; }
+        .ranking-row .rank-time { color: #00ccff; font-family: 'Courier New', monospace; font-weight: bold; }
+        .ranking-row .rank-combo { color: #ff8888; }
+        .ranking-row .rank-jumps { color: #ffdd00; }
+        .ranking-row .rank-chal { color: #00ccff; }
+        
+        .ranking-row.winner { 
+            background: rgba(255,215,0,0.12); 
+            border-radius: 8px;
+            border: 1px solid rgba(255,215,0,0.3);
+        }
+        .ranking-row.second { background: rgba(224,224,224,0.08); border-radius: 8px; }
+        .ranking-row.third { background: rgba(205,127,50,0.08); border-radius: 8px; }
+        
+        .ranking-row .player-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 0 8px currentColor;
+            vertical-align: middle;
+        }
+        
+        #finish-button {
+            background: linear-gradient(135deg, #ffaa00, #ff7700);
+            color: black;
+            border: none;
+            padding: 18px 50px;
+            font-size: 20px;
+            font-weight: 900;
+            border-radius: 50px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            box-shadow: 0 8px 0 #aa5500, 0 0 40px rgba(255,170,0,0.5);
+            transition: 0.15s;
+            font-family: inherit;
+        }
+        
+        #finish-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 11px 0 #aa5500, 0 0 60px rgba(255,170,0,0.8);
+        }
+        
+        .trophy-glow {
+            animation: trophyPulse 2s infinite;
+        }
+        
+        @keyframes trophyPulse {
+            0%, 100% { filter: drop-shadow(0 0 20px #ffd700); }
+            50% { filter: drop-shadow(0 0 40px #ffd700) drop-shadow(0 0 60px #ffaa00); }
+        }
+    </style>
+</head>
+<body>
+    <div id="crosshair"></div>
+    
+    <div id="hud">
+        <div id="distance-panel" class="hud-panel">
+            🏃 0 m / 0 m
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progress-fill"></div>
+            </div>
+        </div>
+        <div id="timer-panel">
+            <div class="timer-label">⏱ TEMPO</div>
+            <div class="timer-value" id="timer-value">0:00.0</div>
+        </div>
+        <div id="players-scoreboard"></div>
+    </div>
+    
+    <div id="jump-combo-display">
+        <div class="jump-combo-count" id="jump-combo-count">x2</div>
+        <div class="jump-combo-label">COMBO DE PULOS</div>
+        <div class="jump-combo-bonus" id="jump-combo-bonus">+50 pts</div>
+        <div id="jump-combo-timer"><div id="jump-combo-timer-fill"></div></div>
+    </div>
+    
+    <div id="turn-indicator">
+        <div class="turn-label">VEZ DE</div>
+        <div class="player-highlight" id="turn-player-name">JOGADOR 1</div>
+        <div class="turn-progress" id="turn-progress">Jogador 1 de 4</div>
+        <div class="turn-hint">Clique para começar</div>
+    </div>
+    
+    <div id="speed-panel">⚡ 0.0 m/s</div>
+    
+    <div id="controls-hint">
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> mover • <kbd>SHIFT</kbd> correr • <kbd>ESPAÇO</kbd> pular
+    </div>
+    
+    <div id="combo-display"></div>
+    
+    <div id="challenge-box">
+        <div class="challenge-title">⚡ DESAFIO ⚡</div>
+        <div class="challenge-player" id="challenge-player">JOGADOR 1</div>
+        <div class="challenge-text" id="challenge-text">Pressione a tecla:</div>
+        <div class="challenge-key" id="challenge-key">E</div>
+        <div class="challenge-timer" id="challenge-timer">⏱ 3.0s</div>
+        <div class="timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
+    </div>
+    
+    <div id="message-overlay">
+        <div class="msg-text" id="msg-text">SUCESSO!</div>
+    </div>
+    
+    <div id="pause-hint">
+        ⏸ CLIQUE PARA CONTINUAR
+    </div>
+
+    <div id="start-screen">
+        <h1>🏆 CORRIDA DE ATLETISMO</h1>
+        <div class="subtitle">SOLO OU TORNEIO • 4 JOGADORES</div>
+
+        <div id="mode-selector">
+            <h2>🎮 Escolha o modo de jogo</h2>
+            <div class="hint">Jogue sozinho ou dispute com até 4 pessoas</div>
+            
+            <div class="mode-options">
+                <button class="mode-btn selected" data-mode="solo">
+                    <div class="mode-icon">🏃</div>
+                    <div class="mode-name">MODO SOLO</div>
+                    <div class="mode-desc">Jogue sozinho e bata seu recorde</div>
+                </button>
+                <button class="mode-btn" data-mode="tournament">
+                    <div class="mode-icon">🏆</div>
+                    <div class="mode-name">TORNEIO</div>
+                    <div class="mode-desc">4 jogadores • Ranking com medalhas</div>
+                </button>
+            </div>
+        </div>
+
+        <div id="distance-selector">
+            <h2>📏 Escolha a distância da corrida</h2>
+            <div class="hint" id="distance-hint">Distância da sua corrida solo</div>
+            
+            <div class="distance-options" id="distance-options">
+                <button class="dist-btn" data-dist="50">50<span class="dist-unit">METROS</span></button>
+                <button class="dist-btn" data-dist="100">100<span class="dist-unit">METROS</span></button>
+                <button class="dist-btn" data-dist="200">200<span class="dist-unit">METROS</span></button>
+                <button class="dist-btn selected" data-dist="500">500<span class="dist-unit">METROS</span></button>
+                <button class="dist-btn" data-dist="1000">1000<span class="dist-unit">METROS</span></button>
+                <button class="dist-btn" data-dist="2000">2000<span class="dist-unit">METROS</span></button>
+                <button class="dist-btn" data-dist="5000">5000<span class="dist-unit">METROS</span></button>
+            </div>
+            
+            <div class="custom-distance">
+                <label for="custom-distance-input">Ou digite:</label>
+                <input type="number" id="custom-distance-input" min="10" max="50000" step="10" placeholder="ex: 750">
+                <span style="color:#aaa; font-size:13px;">metros</span>
+                <button id="custom-distance-btn">APLICAR</button>
+            </div>
+        </div>
+
+        <div id="players-info">
+            <h2>👥 Os 4 Jogadores do Torneio</h2>
+            <div class="hint">Cada jogador compete uma vez. O melhor leva a medalha de ouro!</div>
+            <div class="player-cards" id="player-cards"></div>
+        </div>
+
+        <div id="selected-info">✅ 500 metros • Modo Solo • Atleta individual</div>
+
+        <div class="instructions">
+            Pule obstáculos corretamente e encadeie <span class="highlight-combo">PULOS CONSECUTIVOS</span> para bônus crescentes!<br>
+            🔥 x2 = +50 • x3 = +100 • x4 = +200 • x5+ = +400 pts por pulo!<br>
+            <strong>WASD</strong> mover • <strong>SHIFT</strong> correr • <strong>ESPAÇO</strong> pular
+        </div>
+        
+        <button id="start-button">🏃 COMEÇAR CORRIDA</button>
+    </div>
+
+    <div id="finish-overlay">
+        <h1 id="finish-title">🏆 RESULTADO</h1>
+        <div class="result-subtitle" id="result-subtitle">4 jogadores • 500 metros</div>
+        
+        <div id="solo-result">
+            <div class="solo-big-score" id="solo-score">0</div>
+            <div class="solo-score-label">PONTUAÇÃO FINAL</div>
+            <div class="solo-stats-grid">
+                <div class="solo-stat-card">
+                    <div class="ss-label">⏱ Tempo</div>
+                    <div class="ss-value blue" id="solo-time">0.0s</div>
+                </div>
+                <div class="solo-stat-card">
+                    <div class="ss-label">⚡ Combo Pulos</div>
+                    <div class="ss-value magenta" id="solo-jump-combo">x0</div>
+                </div>
+                <div class="solo-stat-card">
+                    <div class="ss-label">✅ Pulos OK</div>
+                    <div class="ss-value green" id="solo-jumps">0</div>
+                </div>
+                <div class="solo-stat-card">
+                    <div class="ss-label">🎯 Desafios</div>
+                    <div class="ss-value red" id="solo-challenges">0</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="podium-container"></div>
+        
+        <div id="full-ranking">
+            <h2 id="ranking-title">📊 Classificação Completa</h2>
+            <div id="ranking-content"></div>
+        </div>
+        
+        <button id="finish-button">🔄 JOGAR NOVAMENTE</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // ============================================================
+        // CONFIGURAÇÃO DOS JOGADORES
+        // ============================================================
+        const PLAYER_COLORS = [
+            { name: 'JOGADOR 1', color: 0xffaa00, hex: '#ffaa00' },
+            { name: 'JOGADOR 2', color: 0x00ff88, hex: '#00ff88' },
+            { name: 'JOGADOR 3', color: 0x00ccff, hex: '#00ccff' },
+            { name: 'JOGADOR 4', color: 0xff00ff, hex: '#ff00ff' }
+        ];
+        
+        const SOLO_PLAYER = { name: 'VOCÊ', color: 0xffd700, hex: '#ffd700' };
+
+        const TOTAL_PLAYERS = 4;
+        const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉', 4: '🎖️' };
+        const MEDAL_NAMES = { 1: 'OURO', 2: 'PRATA', 3: 'BRONZE', 4: 'PARTICIPAÇÃO' };
+
+        let targetDistance = 500;
+        
+        // ==== MODO DE JOGO ====
+        let gameMode = 'solo'; // 'solo' ou 'tournament'
+        let activePlayers = 1; // 1 no solo, 4 no torneio
+        
+        let currentPlayerIndex = 0;
+        let playerResults = [];
+        let gameActive = false;
+        let waitingForStart = false;
+
+        // ============================================================
+        // CONFIGURAÇÃO DA CENA
+        // ============================================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a3e);
+        scene.fog = new THREE.Fog(0x1a1a3e, 40, 150);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new PointerLockControls(camera, renderer.domElement);
+        scene.add(controls.getObject());
+
+        // ============================================================
+        // ILUMINAÇÃO
+        // ============================================================
+        const ambientLight = new THREE.AmbientLight(0x8899ff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffeedd, 1.0);
+        dirLight.position.set(20, 40, 20);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        const d = 60;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.camera.near = 1;
+        dirLight.shadow.camera.far = 100;
+        scene.add(dirLight);
+
+        const neonLight1 = new THREE.PointLight(0xff00ff, 1.5, 40);
+        neonLight1.position.set(-10, 8, 10);
+        scene.add(neonLight1);
+        
+        const neonLight2 = new THREE.PointLight(0x00ffff, 1.5, 40);
+        neonLight2.position.set(10, 8, 25);
+        scene.add(neonLight2);
+
+        // ============================================================
+        // PISTA PROCEDURAL
+        // ============================================================
+        const TRACK_WIDTH = 10;
+        const LANE_COUNT = 5;
+        const LANE_WIDTH = TRACK_WIDTH / LANE_COUNT;
+        const SEGMENT_LENGTH = 20;
+        const SEGMENTS_AHEAD = 12;
+
+        const trackMat = new THREE.MeshStandardMaterial({ 
+            color: 0x2a2a4a, roughness: 0.8, metalness: 0.2, emissive: 0x0a0a1a
+        });
+        const lineMat = new THREE.MeshStandardMaterial({ 
+            color: 0x00ffff, emissive: 0x0088aa, emissiveIntensity: 1.5
+        });
+        const edgeMat = new THREE.MeshStandardMaterial({ 
+            color: 0xffaa00, emissive: 0xff6600, emissiveIntensity: 1.2
+        });
+
+        const trackGroup = new THREE.Group();
+        scene.add(trackGroup);
+
+        function createTrackSegment(zPosition) {
+            const segment = new THREE.Group();
+            
+            const floorGeo = new THREE.BoxGeometry(TRACK_WIDTH, 0.2, SEGMENT_LENGTH);
+            const floor = new THREE.Mesh(floorGeo, trackMat);
+            floor.position.set(0, -0.1, zPosition + SEGMENT_LENGTH / 2);
+            floor.receiveShadow = true;
+            segment.add(floor);
+
+            for (const side of [-1, 1]) {
+                const edgeGeo = new THREE.BoxGeometry(0.15, 0.22, SEGMENT_LENGTH);
+                const edge = new THREE.Mesh(edgeGeo, edgeMat);
+                edge.position.set(side * (TRACK_WIDTH / 2 - 0.075), 0.01, zPosition + SEGMENT_LENGTH / 2);
+                segment.add(edge);
+            }
+
+            for (let i = 1; i < LANE_COUNT; i++) {
+                const laneGeo = new THREE.BoxGeometry(0.08, 0.21, SEGMENT_LENGTH);
+                const lane = new THREE.Mesh(laneGeo, lineMat);
+                lane.position.set(-TRACK_WIDTH / 2 + i * LANE_WIDTH, 0.005, zPosition + SEGMENT_LENGTH / 2);
+                segment.add(lane);
+            }
+
+            for (let m = 0; m < SEGMENT_LENGTH; m += 5) {
+                const markGeo = new THREE.BoxGeometry(TRACK_WIDTH, 0.21, 0.08);
+                const mark = new THREE.Mesh(markGeo, lineMat);
+                mark.position.set(0, 0.006, zPosition + m);
+                segment.add(mark);
+            }
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, emissive: 0x0a0a1e, roughness: 0.9 });
+            for (const side of [-1, 1]) {
+                const wallGeo = new THREE.BoxGeometry(0.5, 5, SEGMENT_LENGTH);
+                const wall = new THREE.Mesh(wallGeo, wallMat);
+                wall.position.set(side * (TRACK_WIDTH / 2 + 1.5), 2.5, zPosition + SEGMENT_LENGTH / 2);
+                wall.receiveShadow = true;
+                segment.add(wall);
+                
+                const poleGeo = new THREE.CylinderGeometry(0.15, 0.15, 4);
+                const poleMat = new THREE.MeshStandardMaterial({ color: 0x333344 });
+                const pole = new THREE.Mesh(poleGeo, poleMat);
+                pole.position.set(side * (TRACK_WIDTH / 2 + 0.6), 2, zPosition + SEGMENT_LENGTH / 2);
+                segment.add(pole);
+                
+                const lampGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+                const lampMat = new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0xff00ff, emissiveIntensity: 2 });
+                const lamp = new THREE.Mesh(lampGeo, lampMat);
+                lamp.position.set(side * (TRACK_WIDTH / 2 + 0.6), 4.2, zPosition + SEGMENT_LENGTH / 2);
+                segment.add(lamp);
+            }
+
+            return segment;
+        }
+
+        let nextSegmentZ = -SEGMENT_LENGTH;
+        const trackSegments = [];
+
+        function ensureTrackAhead() {
+            while (nextSegmentZ < camera.position.z + SEGMENTS_AHEAD * SEGMENT_LENGTH) {
+                const seg = createTrackSegment(nextSegmentZ);
+                trackGroup.add(seg);
+                trackSegments.push({ mesh: seg, zStart: nextSegmentZ, zEnd: nextSegmentZ + SEGMENT_LENGTH });
+                nextSegmentZ += SEGMENT_LENGTH;
+            }
+            for (let i = trackSegments.length - 1; i >= 0; i--) {
+                if (trackSegments[i].zEnd < camera.position.z - 60) {
+                    trackGroup.remove(trackSegments[i].mesh);
+                    trackSegments.splice(i, 1);
+                }
+            }
+        }
+
+        // ============================================================
+        // OBSTÁCULOS
+        // ============================================================
+        const obstacles = [];
+        let lastObstacleZ = 20;
+        const obstacleColors = [0xff3333, 0xffaa00, 0xff00ff, 0x00ffff];
+
+        function spawnObstacle() {
+            if (lastObstacleZ >= targetDistance - 5) return;
+            
+            const laneIndex = Math.floor(Math.random() * LANE_COUNT);
+            const laneCenterX = -TRACK_WIDTH / 2 + (laneIndex + 0.5) * LANE_WIDTH;
+            const color = obstacleColors[Math.floor(Math.random() * obstacleColors.length)];
+            
+            const group = new THREE.Group();
+            const height = 0.7 + Math.random() * 0.4;
+            const width = LANE_WIDTH - 0.4;
+            
+            const barMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.2 });
+            
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(width, 0.15, 0.15), barMat);
+            bar.position.y = height;
+            bar.castShadow = true;
+            group.add(bar);
+            
+            const bar2 = new THREE.Mesh(new THREE.BoxGeometry(width, 0.1, 0.12), barMat);
+            bar2.position.y = height - 0.35;
+            bar2.castShadow = true;
+            group.add(bar2);
+            
+            const supportMat = new THREE.MeshStandardMaterial({ color: 0x444455 });
+            for (const side of [-1, 1]) {
+                const support = new THREE.Mesh(new THREE.BoxGeometry(0.1, height, 0.1), supportMat);
+                support.position.set(side * (width / 2 - 0.05), height / 2, 0);
+                support.castShadow = true;
+                group.add(support);
+            }
+            
+            group.position.set(laneCenterX, 0, lastObstacleZ);
+            scene.add(group);
+            
+            obstacles.push({
+                mesh: group, z: lastObstacleZ, height, laneIndex, laneCenterX,
+                laneHalfWidth: width / 2, passed: false
+            });
+            
+            lastObstacleZ += 4 + Math.random() * 5;
+        }
+
+        function ensureObstaclesAhead() {
+            const limit = Math.min(targetDistance - 5, camera.position.z + SEGMENTS_AHEAD * SEGMENT_LENGTH);
+            while (lastObstacleZ < limit) {
+                spawnObstacle();
+            }
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                if (obstacles[i].z < camera.position.z - 30) {
+                    scene.remove(obstacles[i].mesh);
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        // ============================================================
+        // LINHA DE CHEGADA
+        // ============================================================
+        let finishLineMesh = null;
+
+        function createFinishLine() {
+            if (finishLineMesh) scene.remove(finishLineMesh);
+            
+            const group = new THREE.Group();
+            
+            const finishMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffaa00, emissive: 0xff6600, emissiveIntensity: 2
+            });
+            const stripGeo = new THREE.BoxGeometry(TRACK_WIDTH, 0.25, 1.5);
+            const strip = new THREE.Mesh(stripGeo, finishMat);
+            strip.position.set(0, 0.05, targetDistance);
+            group.add(strip);
+            
+            const checkerMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            for (let i = 0; i < 10; i++) {
+                for (let j = 0; j < 2; j++) {
+                    if ((i + j) % 2 === 0) continue;
+                    const checkGeo = new THREE.BoxGeometry(TRACK_WIDTH / 10, 0.26, 0.7);
+                    const check = new THREE.Mesh(checkGeo, checkerMat);
+                    check.position.set(
+                        -TRACK_WIDTH/2 + (i + 0.5) * (TRACK_WIDTH / 10),
+                        0.06,
+                        targetDistance - 0.35 + j * 0.7
+                    );
+                    group.add(check);
+                }
+            }
+            
+            const archMat = new THREE.MeshStandardMaterial({ 
+                color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 1.5
+            });
+            for (const side of [-1, 1]) {
+                const pillarGeo = new THREE.BoxGeometry(0.5, 6, 0.5);
+                const pillar = new THREE.Mesh(pillarGeo, archMat);
+                pillar.position.set(side * (TRACK_WIDTH / 2 + 0.5), 3, targetDistance);
+                group.add(pillar);
+            }
+            const topGeo = new THREE.BoxGeometry(TRACK_WIDTH + 1.5, 0.5, 0.5);
+            const top = new THREE.Mesh(topGeo, archMat);
+            top.position.set(0, 6, targetDistance);
+            group.add(top);
+            
+            const bannerGeo = new THREE.PlaneGeometry(TRACK_WIDTH, 1.5);
+            const bannerMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffaa00, emissive: 0xff6600, emissiveIntensity: 1.0, side: THREE.DoubleSide
+            });
+            const banner = new THREE.Mesh(bannerGeo, bannerMat);
+            banner.position.set(0, 5, targetDistance);
+            banner.rotation.y = Math.PI;
+            group.add(banner);
+            
+            scene.add(group);
+            finishLineMesh = group;
+        }
+
+        // ============================================================
+        // DESAFIOS
+        // ============================================================
+        const CHALLENGE_KEYS = ['E', 'Q', 'R', 'F', 'C', 'V', 'X', 'Z'];
+        let activeChallenge = null;
+        let nextChallengeZ = 40;
+        let challengeStartTime = 0;
+        let challengeDuration = 0;
+        
+        let score = 0;
+        let combo = 0;
+        let maxCombo = 0;
+        let challengesPassed = 0;
+        let gameSpeedBoost = 0;
+        let raceStartTime = 0;
+        
+        // Combo de pulos
+        let jumpCombo = 0;
+        let maxJumpCombo = 0;
+        let jumpComboTimer = 0;
+        const JUMP_COMBO_WINDOW = 2.5;
+        let totalJumpsCorrect = 0;
+        let jumpBonusTotal = 0;
+        
+        const challengeBox = document.getElementById('challenge-box');
+        const challengePlayerEl = document.getElementById('challenge-player');
+        const challengeTextEl = document.getElementById('challenge-text');
+        const challengeKeyEl = document.getElementById('challenge-key');
+        const challengeTimerEl = document.getElementById('challenge-timer');
+        const timerFillEl = document.getElementById('timer-fill');
+        const messageOverlay = document.getElementById('message-overlay');
+        const msgTextEl = document.getElementById('msg-text');
+        const comboDisplay = document.getElementById('combo-display');
+        
+        const jumpComboDisplay = document.getElementById('jump-combo-display');
+        const jumpComboCountEl = document.getElementById('jump-combo-count');
+        const jumpComboBonusEl = document.getElementById('jump-combo-bonus');
+        const jumpComboTimerFill = document.getElementById('jump-combo-timer-fill');
+        
+        const timerValueEl = document.getElementById('timer-value');
+
+        function formatTime(ms) {
+            const totalSec = ms / 1000;
+            const minutes = Math.floor(totalSec / 60);
+            const seconds = Math.floor(totalSec % 60);
+            const tenths = Math.floor((ms % 1000) / 100);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}.${tenths}`;
+        }
+
+        function showMessage(text, color) {
+            msgTextEl.textContent = text;
+            msgTextEl.style.color = color;
+            messageOverlay.style.display = 'block';
+            setTimeout(() => { messageOverlay.style.display = 'none'; }, 800);
+        }
+
+        function getJumpBonus(comboCount) {
+            if (comboCount <= 1) return 25;
+            if (comboCount === 2) return 50;
+            if (comboCount === 3) return 100;
+            if (comboCount === 4) return 200;
+            return 400;
+        }
+
+        function showJumpBonusPopup(points, comboCount) {
+            const popup = document.createElement('div');
+            popup.className = 'jump-bonus-popup';
+            
+            let text = `+${points}`;
+            let color = '#00ff88';
+            if (comboCount >= 5) { color = '#ff00ff'; text += ' 🔥'; }
+            else if (comboCount >= 4) { color = '#ff5555'; text += ' ⚡'; }
+            else if (comboCount >= 3) { color = '#ffdd00'; text += ' ✨'; }
+            else if (comboCount >= 2) { color = '#ffaa00'; text += ' ⭐'; }
+            
+            popup.textContent = text;
+            popup.style.color = color;
+            popup.style.textShadow = `0 0 15px ${color}`;
+            popup.style.left = (window.innerWidth / 2 + (Math.random() - 0.5) * 200) + 'px';
+            popup.style.top = '40%';
+            
+            document.body.appendChild(popup);
+            setTimeout(() => popup.remove(), 1000);
+        }
+
+        function registerSuccessfulJump() {
+            jumpCombo++;
+            maxJumpCombo = Math.max(maxJumpCombo, jumpCombo);
+            totalJumpsCorrect++;
+            
+            jumpComboTimer = JUMP_COMBO_WINDOW;
+            
+            const bonus = getJumpBonus(jumpCombo);
+            score += bonus;
+            jumpBonusTotal += bonus;
+            
+            jumpComboDisplay.style.display = 'block';
+            jumpComboCountEl.textContent = `x${jumpCombo}`;
+            jumpComboBonusEl.textContent = `+${bonus} pts`;
+            
+            jumpComboDisplay.classList.remove('jumping');
+            void jumpComboDisplay.offsetWidth;
+            jumpComboDisplay.classList.add('jumping');
+            
+            let color = '#ffaa00';
+            if (jumpCombo >= 5) color = '#ff00ff';
+            else if (jumpCombo >= 4) color = '#ff5555';
+            else if (jumpCombo >= 3) color = '#ffdd00';
+            jumpComboCountEl.style.color = color;
+            jumpComboCountEl.style.textShadow = `0 0 25px ${color}, 0 0 50px ${color}`;
+            
+            showJumpBonusPopup(bonus, jumpCombo);
+            updatePlayerScoreboard();
+        }
+
+        function resetJumpCombo(reason) {
+            if (jumpCombo >= 3) {
+                showMessage(`COMBO x${jumpCombo} PERDIDO!`, '#ff5555');
+            }
+            jumpCombo = 0;
+            jumpComboTimer = 0;
+            jumpComboDisplay.style.display = 'none';
+        }
+
+        function startChallenge() {
+            if (activeChallenge) return;
+            
+            const key = CHALLENGE_KEYS[Math.floor(Math.random() * CHALLENGE_KEYS.length)];
+            const difficultyBonus = Math.min(combo * 0.15, 1.5);
+            const duration = Math.max(1.2, 2.5 - difficultyBonus);
+            
+            activeChallenge = { key, active: true };
+            challengeStartTime = performance.now();
+            challengeDuration = duration;
+            
+            const pColor = getCurrentPlayerColor();
+            challengePlayerEl.textContent = pColor.name;
+            challengePlayerEl.style.color = pColor.hex;
+            challengePlayerEl.style.textShadow = `0 0 15px ${pColor.hex}`;
+            challengeKeyEl.textContent = key;
+            challengeTextEl.textContent = 'Pressione a tecla:';
+            challengeBox.style.display = 'block';
+            challengeBox.style.borderColor = pColor.hex;
+            timerFillEl.style.width = '100%';
+            
+            controls.unlock();
+            updateChallengeTimer();
+        }
+
+        function resolveChallenge(success) {
+            if (!activeChallenge) return;
+            
+            challengeBox.style.display = 'none';
+            
+            if (success) {
+                combo++;
+                maxCombo = Math.max(maxCombo, combo);
+                challengesPassed++;
+                const points = 100 + combo * 25;
+                score += points;
+                gameSpeedBoost = Math.min(gameSpeedBoost + 0.5, 8);
+                
+                showMessage(`+${points}`, '#00ff88');
+                
+                if (combo > 1) {
+                    comboDisplay.textContent = `🔥 COMBO x${combo}`;
+                    comboDisplay.style.display = 'block';
+                    setTimeout(() => { comboDisplay.style.display = 'none'; }, 2000);
+                }
+                
+                nextChallengeZ = camera.position.z + 40 + Math.random() * 20;
+            } else {
+                combo = 0;
+                showMessage('FALHOU!', '#ff3333');
+                score = Math.max(0, score - 50);
+                nextChallengeZ = camera.position.z + 50 + Math.random() * 20;
+            }
+            
+            activeChallenge = null;
+            
+            setTimeout(() => {
+                if (gameActive && !raceFinished) controls.lock();
+            }, 300);
+            
+            updatePlayerScoreboard();
+        }
+
+        function checkChallengeTrigger() {
+            if (!gameActive || raceFinished || activeChallenge) return;
+            if (nextChallengeZ >= targetDistance - 10) return;
+            if (camera.position.z >= nextChallengeZ) startChallenge();
+        }
+
+        function updateChallengeTimer() {
+            if (!activeChallenge) return;
+            
+            const elapsed = (performance.now() - challengeStartTime) / 1000;
+            const remaining = Math.max(0, challengeDuration - elapsed);
+            
+            challengeTimerEl.textContent = `⏱ ${remaining.toFixed(1)}s`;
+            timerFillEl.style.width = `${(remaining / challengeDuration) * 100}%`;
+            
+            if (remaining <= 0) {
+                resolveChallenge(false);
+            } else {
+                requestAnimationFrame(updateChallengeTimer);
+            }
+        }
+
+        // ============================================================
+        // FÍSICA / MOVIMENTO
+        // ============================================================
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let isRunning = false;
+        let isJumping = false, verticalVelocity = 0;
+        const GRAVITY = 25, JUMP_FORCE = 8.5, GROUND_Y = 1.7;
+        
+        const BASE_WALK_SPEED = 4.0;
+        const BASE_RUN_SPEED = 12.0;
+        const DAMPING = 0.9;
+        
+        const startPosition = new THREE.Vector3(0, GROUND_Y, 0);
+        camera.position.copy(startPosition);
+        
+        let raceFinished = false;
+        let hitCooldown = 0;
+
+        // ============================================================
+        // INPUT
+        // ============================================================
+        const onKeyDown = (event) => {
+            if (activeChallenge) {
+                if (event.code === 'Key' + activeChallenge.key) {
+                    resolveChallenge(true);
+                }
+                return;
+            }
+            if (!gameActive || raceFinished) return;
+            
+            switch (event.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'ShiftLeft':
+                case 'ShiftRight': isRunning = true; break;
+                case 'Space':
+                    event.preventDefault();
+                    if (!isJumping && controls.isLocked) {
+                        isJumping = true;
+                        verticalVelocity = JUMP_FORCE;
+                    }
+                    break;
+            }
+        };
+        
+        const onKeyUp = (event) => {
+            switch (event.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyD': moveRight = false; break;
+                case 'ShiftLeft':
+                case 'ShiftRight': isRunning = false; break;
+            }
+        };
+        
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+
+        // ============================================================
+        // COLISÃO E DETECÇÃO DE PULO
+        // ============================================================
+        function checkObstacleCollision() {
+            const playerX = camera.position.x;
+            const playerZ = camera.position.z;
+            const feetY = camera.position.y - GROUND_Y + 0.1;
+            
+            for (const obs of obstacles) {
+                if (!obs.passed && playerZ > obs.z + 0.5) {
+                    obs.passed = true;
+                    
+                    if (isJumping && feetY > obs.height * 0.7) {
+                        registerSuccessfulJump();
+                    }
+                }
+                
+                if (hitCooldown <= 0 && Math.abs(playerZ - obs.z) < 0.5) {
+                    if (Math.abs(playerX - obs.laneCenterX) < obs.laneHalfWidth + 0.4) {
+                        if (feetY < obs.height) {
+                            hitCooldown = 1.0;
+                            showMessage('💥 BATEU!', '#ff3333');
+                            combo = 0;
+                            score = Math.max(0, score - 30);
+                            velocity.z = 5;
+                            camera.position.z -= 1.5;
+                            resetJumpCombo('hit');
+                            updatePlayerScoreboard();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ============================================================
+        // FINALIZAR CORRIDA
+        // ============================================================
+        const finishOverlay = document.getElementById('finish-overlay');
+
+        function finishPlayerRace() {
+            if (raceFinished) return;
+            raceFinished = true;
+            
+            const totalTime = (performance.now() - raceStartTime) / 1000;
+            
+            playerResults[currentPlayerIndex] = {
+                score,
+                maxCombo,
+                challengesPassed,
+                time: totalTime,
+                distance: targetDistance,
+                maxJumpCombo,
+                totalJumpsCorrect,
+                jumpBonusTotal
+            };
+            
+            controls.unlock();
+            
+            if (currentPlayerIndex < activePlayers - 1) {
+                currentPlayerIndex++;
+                showNextPlayerTurn();
+            } else {
+                if (gameMode === 'solo') {
+                    showSoloResult();
+                } else {
+                    showFinalRanking();
+                }
+            }
+        }
+
+        // ============================================================
+        // GERENCIAMENTO DE TURNOS
+        // ============================================================
+        const turnIndicator = document.getElementById('turn-indicator');
+        const turnPlayerName = document.getElementById('turn-player-name');
+        const turnProgress = document.getElementById('turn-progress');
+        
+        function getCurrentPlayerColor() {
+            return gameMode === 'solo' ? SOLO_PLAYER : PLAYER_COLORS[currentPlayerIndex];
+        }
+        
+        function resetPlayerState() {
+            raceFinished = false;
+            gameActive = false;
+            score = 0;
+            combo = 0;
+            maxCombo = 0;
+            challengesPassed = 0;
+            gameSpeedBoost = 0;
+            activeChallenge = null;
+            nextChallengeZ = 40;
+            lastObstacleZ = 20;
+            hitCooldown = 0;
+            isJumping = false;
+            verticalVelocity = 0;
+            moveForward = moveBackward = moveLeft = moveRight = false;
+            isRunning = false;
+            
+            jumpCombo = 0;
+            maxJumpCombo = 0;
+            jumpComboTimer = 0;
+            totalJumpsCorrect = 0;
+            jumpBonusTotal = 0;
+            jumpComboDisplay.style.display = 'none';
+            
+            camera.position.copy(startPosition);
+            camera.rotation.set(0, 0, 0);
+            velocity.set(0, 0, 0);
+            
+            while (trackGroup.children.length > 0) {
+                trackGroup.remove(trackGroup.children[0]);
+            }
+            trackSegments.length = 0;
+            nextSegmentZ = -SEGMENT_LENGTH;
+            
+            while (obstacles.length > 0) {
+                scene.remove(obstacles[0].mesh);
+                obstacles.pop();
+            }
+            
+            createFinishLine();
+            ensureTrackAhead();
+            ensureObstaclesAhead();
+            
+            updatePlayerScoreboard();
+            timerValueEl.textContent = '0:00.0';
+        }
+        
+        function showNextPlayerTurn() {
+            resetPlayerState();
+            
+            const pColor = getCurrentPlayerColor();
+            
+            turnPlayerName.textContent = pColor.name;
+            turnPlayerName.style.color = pColor.hex;
+            
+            if (gameMode === 'solo') {
+                turnProgress.textContent = 'Modo Solo • Boa sorte!';
+            } else {
+                turnProgress.textContent = `Jogador ${currentPlayerIndex + 1} de ${activePlayers}`;
+            }
+            
+            turnIndicator.style.display = 'block';
+            turnIndicator.style.borderColor = pColor.hex;
+            turnIndicator.style.boxShadow = `0 0 60px ${pColor.hex}`;
+            
+            waitingForStart = true;
+        }
+
+        turnIndicator.addEventListener('click', () => {
+            if (waitingForStart) {
+                waitingForStart = false;
+                turnIndicator.style.display = 'none';
+                gameActive = true;
+                raceStartTime = performance.now();
+                controls.lock();
+            }
+        });
+
+        // ============================================================
+        // PLACAR
+        // ============================================================
+        function updatePlayerScoreboard() {
+            const scoreboard = document.getElementById('players-scoreboard');
+            let html = '';
+            
+            // No modo solo, mostra só o atleta
+            if (gameMode === 'solo') {
+                const pColor = SOLO_PLAYER;
+                const isCurrent = !raceFinished;
+                const isDone = playerResults[0] !== undefined && playerResults[0] !== null;
+                const currentScore = isCurrent ? score : (isDone ? playerResults[0].score : 0);
+                const currentTime = isCurrent && raceStartTime > 0 ? (performance.now() - raceStartTime) / 1000 : (isDone ? playerResults[0].time : 0);
+                
+                let rowClass = 'player-row';
+                if (isCurrent) rowClass += ' current';
+                if (isDone) rowClass += ' finished';
+                
+                const timeStr = (isCurrent || isDone) ? formatTime(currentTime * 1000) : '--:--.-';
+                
+                html = `<div class="${rowClass}">
+                    <div class="player-color" style="background:${pColor.hex}; color:${pColor.hex};"></div>
+                    <div class="player-name" style="color:${pColor.hex}">${pColor.name}</div>
+                    <div class="player-score">${currentScore}</div>
+                    <div class="player-time">${timeStr}</div>
+                    <div class="player-medal">${isDone ? '🏁' : ''}</div>
+                </div>`;
+                
+                scoreboard.innerHTML = html;
+                return;
+            }
+            
+            // Modo torneio
+            for (let i = 0; i < activePlayers; i++) {
+                const pColor = PLAYER_COLORS[i];
+                const isCurrent = i === currentPlayerIndex && !raceFinished;
+                const isDone = playerResults[i] !== undefined && playerResults[i] !== null;
+                const currentScore = isCurrent ? score : (isDone ? playerResults[i].score : 0);
+                const currentTime = isCurrent && raceStartTime > 0 ? (performance.now() - raceStartTime) / 1000 : (isDone ? playerResults[i].time : 0);
+                
+                let rowClass = 'player-row';
+                if (isCurrent) rowClass += ' current';
+                if (isDone) rowClass += ' finished';
+                
+                let medal = '';
+                if (isDone) {
+                    const finishedScores = playerResults
+                        .map((r, idx) => r ? { idx, score: r.score } : null)
+                        .filter(r => r !== null)
+                        .sort((a, b) => b.score - a.score);
+                    const pos = finishedScores.findIndex(r => r.idx === i) + 1;
+                    medal = MEDALS[pos] || '';
+                }
+                
+                const timeStr = (isCurrent || isDone) ? formatTime(currentTime * 1000) : '--:--.-';
+                
+                html += `<div class="${rowClass}">
+                    <div class="player-color" style="background:${pColor.hex}; color:${pColor.hex};"></div>
+                    <div class="player-name" style="color:${pColor.hex}">${pColor.name}</div>
+                    <div class="player-score">${currentScore}</div>
+                    <div class="player-time">${timeStr}</div>
+                    <div class="player-medal">${medal}</div>
+                </div>`;
+            }
+            
+            scoreboard.innerHTML = html;
+        }
+
+        // ============================================================
+        // RESULTADO SOLO
+        // ============================================================
+        function showSoloResult() {
+            gameActive = false;
+            
+            const result = playerResults[0];
+            
+            document.getElementById('finish-title').textContent = '🏁 CORRIDA CONCLUÍDA!';
+            document.getElementById('result-subtitle').textContent = 
+                `Modo Solo • ${targetDistance} metros • Sua performance`;
+            
+            // Mostrar painel solo, esconder pódio e ranking
+            document.getElementById('solo-result').style.display = 'flex';
+            document.getElementById('podium-container').style.display = 'none';
+            document.getElementById('full-ranking').style.display = 'none';
+            
+            document.getElementById('solo-score').textContent = result.score;
+            document.getElementById('solo-time').textContent = result.time.toFixed(1) + 's';
+            document.getElementById('solo-jump-combo').textContent = `x${result.maxJumpCombo}`;
+            document.getElementById('solo-jumps').textContent = result.totalJumpsCorrect;
+            document.getElementById('solo-challenges').textContent = result.challengesPassed;
+            
+            finishOverlay.style.display = 'flex';
+        }
+        
+        // ============================================================
+        // RANKING FINAL (TORNEIO)
+        // ============================================================
+        function showFinalRanking() {
+            gameActive = false;
+            
+            document.getElementById('finish-title').textContent = '🏆 RESULTADO DO TORNEIO';
+            document.getElementById('result-subtitle').textContent = 
+                `${activePlayers} jogadores • ${targetDistance} metros • Ranking por pontuação`;
+            
+            // Esconder painel solo, mostrar pódio e ranking
+            document.getElementById('solo-result').style.display = 'none';
+            document.getElementById('podium-container').style.display = 'flex';
+            document.getElementById('full-ranking').style.display = 'block';
+            
+            const ranking = playerResults.map((r, i) => ({...r, playerIndex: i}))
+                .sort((a, b) => b.score - a.score);
+            
+            const podium = document.getElementById('podium-container');
+            podium.innerHTML = '';
+            
+            const podiumOrder = [1, 0, 2, 3];
+            
+            for (const rankIdx of podiumOrder) {
+                if (rankIdx >= ranking.length) continue;
+                
+                const entry = ranking[rankIdx];
+                const pColor = PLAYER_COLORS[entry.playerIndex];
+                const place = rankIdx + 1;
+                const medalIcon = MEDALS[place];
+                
+                const div = document.createElement('div');
+                div.className = `podium-place place-${place}`;
+                
+                const trophyClass = place === 1 ? 'trophy-glow' : '';
+                
+                div.innerHTML = `
+                    <div class="podium-medal-icon ${trophyClass}">${medalIcon}</div>
+                    <div class="podium-player-name" style="color:${pColor.hex}">${pColor.name}</div>
+                    <div class="podium-block" style="border-color:${pColor.hex};">
+                        <div class="podium-rank" style="color:${pColor.hex}">${place}º</div>
+                        <div class="podium-score">${entry.score}</div>
+                        <div class="podium-time">⏱ ${entry.time.toFixed(1)}s</div>
+                        <div class="podium-detail">${MEDAL_NAMES[place]}</div>
+                    </div>
+                `;
+                podium.appendChild(div);
+            }
+            
+            const content = document.getElementById('ranking-content');
+            let html = `<div class="ranking-row header">
+                <div>Pos</div>
+                <div style="text-align:left">Jogador</div>
+                <div>Pontos</div>
+                <div>Tempo</div>
+                <div>Combo Pulos</div>
+                <div>Pulos OK</div>
+                <div>Desafios</div>
+            </div>`;
+            
+            ranking.forEach((entry, idx) => {
+                const pColor = PLAYER_COLORS[entry.playerIndex];
+                const place = idx + 1;
+                const medalIcon = MEDALS[place];
+                
+                let rowClass = 'ranking-row';
+                if (place === 1) rowClass += ' winner';
+                else if (place === 2) rowClass += ' second';
+                else if (place === 3) rowClass += ' third';
+                
+                html += `<div class="${rowClass}">
+                    <div class="rank-pos" style="color:${place === 1 ? '#ffd700' : place === 2 ? '#e0e0e0' : place === 3 ? '#cd7f32' : '#666'}">${medalIcon} ${place}º</div>
+                    <div class="rank-name" style="color:${pColor.hex}">
+                        <span class="player-dot" style="background:${pColor.hex}; color:${pColor.hex}"></span>
+                        ${pColor.name}
+                    </div>
+                    <div class="rank-score">${entry.score}</div>
+                    <div class="rank-time">${entry.time.toFixed(1)}s</div>
+                    <div class="rank-combo">x${entry.maxJumpCombo || 0}</div>
+                    <div class="rank-jumps">${entry.totalJumpsCorrect || 0}</div>
+                    <div class="rank-chal">${entry.challengesPassed}</div>
+                </div>`;
+            });
+            
+            content.innerHTML = html;
+            finishOverlay.style.display = 'flex';
+        }
+
+        // ============================================================
+        // LOOP
+        // ============================================================
+        let prevTime = performance.now();
+        let lastChallengeCheck = 0;
+        let lastTimerUpdate = 0;
+        let lastScoreboardUpdate = 0;
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const time = performance.now();
+            const delta = Math.min(0.05, (time - prevTime) / 1000);
+            prevTime = time;
+            
+            if (hitCooldown > 0) hitCooldown -= delta;
+            
+            if (jumpComboTimer > 0) {
+                jumpComboTimer -= delta;
+                const pct = Math.max(0, (jumpComboTimer / JUMP_COMBO_WINDOW) * 100);
+                jumpComboTimerFill.style.width = `${pct}%`;
+                
+                if (jumpComboTimer <= 0) {
+                    resetJumpCombo('timeout');
+                }
+            }
+            
+            if (gameActive && !raceFinished && raceStartTime > 0) {
+                if (time - lastTimerUpdate > 50) {
+                    lastTimerUpdate = time;
+                    const elapsed = time - raceStartTime;
+                    timerValueEl.textContent = formatTime(elapsed);
+                }
+            }
+            
+            if (time - lastScoreboardUpdate > 250) {
+                lastScoreboardUpdate = time;
+                if (gameActive && !raceFinished) updatePlayerScoreboard();
+            }
+            
+            if (time - lastChallengeCheck > 200) {
+                lastChallengeCheck = time;
+                checkChallengeTrigger();
+            }
+            
+            if (gameActive && !raceFinished && controls.isLocked && !activeChallenge) {
+                velocity.x -= velocity.x * DAMPING * delta * 10;
+                velocity.z -= velocity.z * DAMPING * delta * 10;
+                
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+                
+                const speed = (isRunning ? BASE_RUN_SPEED : BASE_WALK_SPEED) + gameSpeedBoost;
+                
+                if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta * 10;
+                if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta * 10;
+                
+                if (Math.abs(velocity.z) > speed) velocity.z = Math.sign(velocity.z) * speed;
+                if (Math.abs(velocity.x) > speed) velocity.x = Math.sign(velocity.x) * speed;
+                
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+                
+                const minX = -TRACK_WIDTH / 2 + 0.8;
+                const maxX = TRACK_WIDTH / 2 - 0.8;
+                if (camera.position.x < minX) camera.position.x = minX;
+                if (camera.position.x > maxX) camera.position.x = maxX;
+                
+                if (isJumping) {
+                    camera.position.y += verticalVelocity * delta;
+                    verticalVelocity -= GRAVITY * delta;
+                    if (camera.position.y <= GROUND_Y) {
+                        camera.position.y = GROUND_Y;
+                        isJumping = false;
+                        verticalVelocity = 0;
+                    }
+                } else {
+                    camera.position.y = GROUND_Y;
+                }
+                
+                checkObstacleCollision();
+                ensureTrackAhead();
+                ensureObstaclesAhead();
+                
+                const currentSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+                document.getElementById('speed-panel').textContent = `⚡ ${currentSpeed.toFixed(1)} m/s`;
+                
+                const dist = Math.max(0, Math.floor(camera.position.z));
+                const distancePanelEl = document.getElementById('distance-panel');
+                distancePanelEl.innerHTML = `🏃 ${dist} m / ${targetDistance} m
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${Math.min(100, (dist/targetDistance)*100)}%"></div></div>`;
+                
+                neonLight1.position.z = camera.position.z + 10;
+                neonLight2.position.z = camera.position.z + 25;
+                
+                if (camera.position.z >= targetDistance) {
+                    finishPlayerRace();
+                }
+            } else if (activeChallenge) {
+                document.getElementById('speed-panel').textContent = `⚡ 0.0 m/s`;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+
+        // ============================================================
+        // PAUSA / LOCK
+        // ============================================================
+        const pauseHint = document.getElementById('pause-hint');
+        
+        controls.addEventListener('lock', () => { pauseHint.style.display = 'none'; });
+        controls.addEventListener('unlock', () => {
+            if (gameActive && !raceFinished && !activeChallenge && !waitingForStart) {
+                pauseHint.style.display = 'block';
+            }
+        });
+
+        renderer.domElement.addEventListener('click', () => {
+            if (gameActive && !activeChallenge && !raceFinished) controls.lock();
+        });
+
+        // ============================================================
+        // SELETOR DE MODO DE JOGO
+        // ============================================================
+        const modeButtons = document.querySelectorAll('.mode-btn');
+        const playersInfoPanel = document.getElementById('players-info');
+        const distanceHint = document.getElementById('distance-hint');
+        
+        function updateUIBasedOnMode() {
+            if (gameMode === 'solo') {
+                activePlayers = 1;
+                playersInfoPanel.style.display = 'none';
+                distanceHint.textContent = 'Distância da sua corrida solo';
+            } else {
+                activePlayers = 4;
+                playersInfoPanel.style.display = 'block';
+                distanceHint.textContent = 'Todos os 4 jogadores correm esta mesma distância';
+            }
+            updateSelectedInfo();
+            updatePlayerScoreboard();
+        }
+        
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                modeButtons.forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                gameMode = btn.dataset.mode;
+                updateUIBasedOnMode();
+            });
+        });
+
+        // ============================================================
+        // SELETOR DE DISTÂNCIA
+        // ============================================================
+        const distButtons = document.querySelectorAll('.dist-btn');
+        const customInput = document.getElementById('custom-distance-input');
+        const customBtn = document.getElementById('custom-distance-btn');
+        const selectedInfo = document.getElementById('selected-info');
+
+        function updateSelectedInfo() {
+            const distStr = targetDistance.toLocaleString('pt-BR');
+            if (gameMode === 'solo') {
+                selectedInfo.textContent = `✅ ${distStr} metros • Modo Solo • Atleta individual`;
+            } else {
+                selectedInfo.textContent = `✅ ${distStr} metros • Torneio • ${activePlayers} jogadores`;
+            }
+        }
+
+        function selectDistance(meters) {
+            distButtons.forEach(b => b.classList.remove('selected'));
+            
+            let matched = false;
+            distButtons.forEach(b => {
+                if (parseInt(b.dataset.dist) === meters) {
+                    b.classList.add('selected');
+                    matched = true;
+                }
+            });
+            
+            targetDistance = meters;
+            updateSelectedInfo();
+            
+            if (!matched) customInput.value = '';
+        }
+
+        distButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectDistance(parseInt(btn.dataset.dist));
+            });
+        });
+
+        customBtn.addEventListener('click', () => {
+            const val = parseInt(customInput.value);
+            if (!val || val < 10) {
+                customInput.style.borderColor = '#ff3333';
+                return;
+            }
+            if (val > 50000) {
+                customInput.style.borderColor = '#ff3333';
+                return;
+            }
+            customInput.style.borderColor = '#444';
+            selectDistance(val);
+        });
+
+        customInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') customBtn.click();
+        });
+
+        // ============================================================
+        // CARDS DOS JOGADORES
+        // ============================================================
+        function renderPlayerCards() {
+            const container = document.getElementById('player-cards');
+            let html = '';
+            
+            for (let i = 0; i < TOTAL_PLAYERS; i++) {
+                const pColor = PLAYER_COLORS[i];
+                html += `<div class="player-info-card" style="border-color:${pColor.hex}; box-shadow: 0 0 20px ${pColor.hex}33;">
+                    <div class="pi-color" style="background:${pColor.hex}; color:${pColor.hex};"></div>
+                    <div class="pi-name" style="color:${pColor.hex}">${pColor.name}</div>
+                    <div class="pi-controls">
+                        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><br>
+                        <kbd>SHIFT</kbd> • <kbd>ESPAÇO</kbd>
+                    </div>
+                </div>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        // ============================================================
+        // INICIAR JOGO
+        // ============================================================
+        const startScreen = document.getElementById('start-screen');
+        const startButton = document.getElementById('start-button');
+
+        startButton.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            finishOverlay.style.display = 'none';
+            
+            currentPlayerIndex = 0;
+            playerResults = [];
+            for (let i = 0; i < activePlayers; i++) playerResults.push(null);
+            
+            showNextPlayerTurn();
+        });
+
+        document.getElementById('finish-button').addEventListener('click', () => {
+            finishOverlay.style.display = 'none';
+            startScreen.style.display = 'flex';
+            
+            currentPlayerIndex = 0;
+            playerResults = [];
+            raceFinished = false;
+            gameActive = false;
+            waitingForStart = false;
+            turnIndicator.style.display = 'none';
+            jumpComboDisplay.style.display = 'none';
+            
+            // Reset visual dos painéis de resultado
+            document.getElementById('solo-result').style.display = 'none';
+            document.getElementById('podium-container').style.display = 'flex';
+            document.getElementById('full-ranking').style.display = 'block';
+            document.getElementById('finish-title').textContent = '🏆 RESULTADO';
+            
+            while (trackGroup.children.length > 0) {
+                trackGroup.remove(trackGroup.children[0]);
+            }
+            trackSegments.length = 0;
+            nextSegmentZ = -SEGMENT_LENGTH;
+            
+            while (obstacles.length > 0) {
+                scene.remove(obstacles[0].mesh);
+                obstacles.pop();
+            }
+            
+            camera.position.copy(startPosition);
+            camera.rotation.set(0, 0, 0);
+            
+            createFinishLine();
+            ensureTrackAhead();
+            ensureObstaclesAhead();
+            
+            timerValueEl.textContent = '0:00.0';
+            
+            updatePlayerScoreboard();
+        });
+
+        // ============================================================
+        // RESIZE
+        // ============================================================
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.addEventListener('contextmenu', e => e.preventDefault());
+        
+        // Inicializar
+        createFinishLine();
+        ensureTrackAhead();
+        ensureObstaclesAhead();
+        renderPlayerCards();
+        updateUIBasedOnMode();
+    </script>
+</body>
+</html>
